@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>今日待办</title>
+<style>
+  :root {
+    --primary: #4f6ef7;
+    --primary-dark: #3b55d9;
+    --danger: #e5484d;
+    --bg: #f4f5fb;
+    --card: #ffffff;
+    --text: #1f2330;
+    --muted: #8a90a3;
+    --border: #e6e8f0;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  html, body { height: 100%; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    display: flex; flex-direction: column;
+    min-height: 100vh;
+  }
+  header {
+    background: linear-gradient(135deg, #4f6ef7, #6a8bff);
+    color: #fff;
+    padding: 22px 20px 26px;
+    border-radius: 0 0 24px 24px;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  header h1 { font-size: 20px; font-weight: 700; }
+  .header-right { display: flex; align-items: center; gap: 10px; }
+  .user-email { font-size: 12px; opacity: .85; max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .btn-logout {
+    background: rgba(255,255,255,.2); color: #fff; border: none; border-radius: 8px;
+    padding: 6px 12px; font-size: 12px; cursor: pointer;
+  }
+  main { flex: 1; width: 100%; max-width: 520px; margin: 0 auto; padding: 16px; }
+
+  /* 剩余计数 */
+  .count-bar {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 14px; padding: 0 4px;
+  }
+  .count-bar .remain { font-size: 14px; color: var(--muted); }
+  .count-bar .remain b { color: var(--primary); font-size: 18px; }
+  .count-bar .total { font-size: 13px; color: var(--muted); }
+
+  /* 添加栏 */
+  .add-bar { display: flex; gap: 10px; margin-bottom: 16px; }
+  .add-bar input {
+    flex: 1; border: 1.5px solid var(--border); border-radius: 12px;
+    padding: 12px 14px; font-size: 15px; background: var(--card);
+    outline: none; transition: border-color .2s; min-width: 0;
+  }
+  .add-bar input:focus { border-color: var(--primary); }
+  .add-bar button {
+    border: none; background: var(--primary); color: #fff; border-radius: 12px;
+    padding: 0 22px; font-size: 15px; font-weight: 600; cursor: pointer;
+    transition: background .2s; flex-shrink: 0;
+  }
+  .add-bar button:active { background: var(--primary-dark); }
+
+  /* 列表 */
+  .todo-list { list-style: none; display: flex; flex-direction: column; gap: 10px; }
+  .todo-item {
+    display: flex; align-items: center; gap: 12px;
+    background: var(--card); border-radius: 14px; padding: 14px;
+    box-shadow: 0 1px 3px rgba(31,35,48,.06);
+    animation: slideIn .2s ease;
+  }
+  @keyframes slideIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+  .check {
+    width: 22px; height: 22px; border-radius: 50%;
+    border: 2px solid #c3c8da; background: transparent; cursor: pointer;
+    flex-shrink: 0; display: flex; align-items: center; justify-content: center;
+    transition: all .2s; padding: 0;
+  }
+  .check.checked { background: var(--primary); border-color: var(--primary); }
+  .check svg { width: 12px; height: 12px; stroke: #fff; stroke-width: 3; fill: none; opacity: 0; transition: opacity .15s; }
+  .check.checked svg { opacity: 1; }
+  .todo-text { flex: 1; font-size: 15px; word-break: break-all; line-height: 1.45; transition: color .2s; }
+  .todo-item.done .todo-text { color: var(--muted); text-decoration: line-through; }
+  .del-btn {
+    border: none; background: transparent; color: var(--muted); cursor: pointer;
+    font-size: 18px; padding: 4px 8px; border-radius: 8px; flex-shrink: 0; line-height: 1;
+  }
+  .del-btn:active { color: var(--danger); background: #fdeaea; }
+
+  /* 隐藏/显示已完成切换按钮（与「添加」按钮同款外观） */
+  .toggle-row { list-style: none; display: flex; }
+  .toggle-done-btn {
+    flex: 1; border: none; background: #9aa0b3; color: #fff; cursor: pointer;
+    border-radius: 12px; padding: 12px 22px; font-size: 15px; font-weight: 600;
+    transition: background .2s;
+  }
+  .toggle-done-btn:hover { background: #8b91a6; }
+  .toggle-done-btn:active { background: #7c8299; }
+  .done-hidden-hint {
+    text-align: center; color: var(--muted); font-size: 13px; padding: 8px 0;
+    list-style: none;
+  }
+
+  .empty {
+    text-align: center; color: var(--muted); padding: 48px 0; font-size: 14px;
+  }
+  .toast {
+    position: fixed; left: 50%; bottom: 40px; transform: translateX(-50%) translateY(20px);
+    background: rgba(31,35,48,.9); color: #fff; padding: 10px 18px; border-radius: 10px;
+    font-size: 14px; opacity: 0; pointer-events: none; transition: all .25s; z-index: 99;
+    max-width: 85vw; text-align: center;
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+  /* 登录层 */
+  .auth-mask {
+    position: fixed; inset: 0; background: var(--bg); z-index: 10;
+    display: flex; align-items: center; justify-content: center; padding: 24px;
+  }
+  .auth-mask.hidden { display: none; }
+  .auth-card {
+    width: 100%; max-width: 380px; background: var(--card); border-radius: 20px;
+    padding: 32px 26px; box-shadow: 0 8px 30px rgba(31,35,48,.1);
+  }
+  .auth-card h2 { font-size: 22px; margin-bottom: 4px; }
+  .auth-card .sub { font-size: 13px; color: var(--muted); margin-bottom: 24px; }
+  .auth-card input {
+    width: 100%; border: 1.5px solid var(--border); border-radius: 12px;
+    padding: 12px 14px; font-size: 15px; margin-bottom: 14px; outline: none;
+    transition: border-color .2s;
+  }
+  .auth-card input:focus { border-color: var(--primary); }
+  .auth-card .submit {
+    width: 100%; border: none; background: var(--primary); color: #fff;
+    border-radius: 12px; padding: 13px; font-size: 16px; font-weight: 600; cursor: pointer;
+    margin-top: 4px;
+  }
+  .auth-card .submit:disabled { opacity: .6; }
+  .auth-switch { text-align: center; margin-top: 18px; font-size: 13px; color: var(--muted); }
+  .auth-switch a { color: var(--primary); text-decoration: none; cursor: pointer; }
+  .auth-err { color: var(--danger); font-size: 13px; min-height: 18px; margin: -6px 0 10px; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>📝 今日待办</h1>
+  <div class="header-right">
+    <span class="user-email" id="userEmail"></span>
+    <button class="btn-logout" id="logoutBtn">退出</button>
+  </div>
+</header>
+
+<main>
+  <div class="count-bar">
+    <span class="remain">剩余 <b id="remainCount">0</b> 项待完成</span>
+    <span class="total" id="totalCount">共 0 项</span>
+  </div>
+
+  <div class="add-bar">
+    <input id="todoInput" type="text" maxlength="200" placeholder="今天要做点什么？" autocomplete="off">
+    <button id="addBtn">添加</button>
+  </div>
+
+  <ul class="todo-list" id="todoList"></ul>
+  <div class="empty" id="emptyTip" style="display:none">今天还没有任务，添加一条吧 ☀️</div>
+</main>
+
+<!-- 登录/注册 -->
+<div class="auth-mask" id="authMask">
+  <div class="auth-card">
+    <h2 id="authTitle">登录</h2>
+    <div class="sub">使用邮箱作为账号，数据云端同步</div>
+    <input id="authEmail" type="email" placeholder="邮箱" autocomplete="email">
+    <input id="authPassword" type="password" placeholder="密码（至少 6 位）" autocomplete="current-password">
+    <div class="auth-err" id="authErr"></div>
+    <button class="submit" id="authSubmit">登录</button>
+    <div class="auth-switch">
+      <span id="switchTip">还没有账号？</span><a id="switchLink">注册</a>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const API = "/api";
+let token = localStorage.getItem("todo_token") || "";
+let mode = "login"; // login | register
+// 是否隐藏所有已完成项（持久化到 localStorage）
+let hideDone = localStorage.getItem("todo_hide_done") === "1";
+
+function showToast(msg) {
+  const t = $("toast");
+  t.textContent = msg;
+  t.classList.add("show");
+  clearTimeout(t._timer);
+  t._timer = setTimeout(() => t.classList.remove("show"), 2200);
+}
+
+async function api(path, opts = {}) {
+  const headers = { "Content-Type": "application/json", ...(opts.headers || {}) };
+  // 用自定义头传输 Token：平台代理会覆盖标准的 Authorization 头
+  if (token) headers["X-Auth-Token"] = token;
+  const res = await fetch(API + path, { ...opts, headers });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || "请求失败");
+  return data;
+}
+
+// ---------- 认证 ----------
+function showAuth(show) { $("authMask").classList.toggle("hidden", !show); }
+
+function setMode(m) {
+  mode = m;
+  $("authTitle").textContent = m === "login" ? "登录" : "注册";
+  $("authSubmit").textContent = m === "login" ? "登录" : "注册";
+  $("switchTip").textContent = m === "login" ? "还没有账号？" : "已有账号？";
+  $("switchLink").textContent = m === "login" ? "注册" : "登录";
+  $("authErr").textContent = "";
+}
+
+$("switchLink").onclick = () => setMode(mode === "login" ? "register" : "login");
+
+$("authSubmit").onclick = async () => {
+  const email = $("authEmail").value.trim();
+  const password = $("authPassword").value;
+  if (!email || !password) { $("authErr").textContent = "请填写邮箱和密码"; return; }
+  $("authSubmit").disabled = true;
+  try {
+    const data = await api("/" + mode, {
+      method: "POST",
+      body: JSON.stringify({ email, password })
+    });
+    token = data.token;
+    localStorage.setItem("todo_token", token);
+    enterApp(data.email);
+  } catch (e) {
+    $("authErr").textContent = e.message;
+  } finally {
+    $("authSubmit").disabled = false;
+  }
+};
+$("authPassword").addEventListener("keydown", e => { if (e.key === "Enter") $("authSubmit").click(); });
+
+$("logoutBtn").onclick = async () => {
+  try { await api("/logout", { method: "POST" }); } catch (e) {}
+  localStorage.removeItem("todo_token");
+  token = "";
+  showAuth(true);
+  setMode("login");
+};
+
+function enterApp(email) {
+  $("userEmail").textContent = email;
+  showAuth(false);
+  loadTodos();
+}
+
+// ---------- 待办 ----------
+async function loadTodos() {
+  try {
+    const list = await api("/todos");
+    render(list);
+  } catch (e) {
+    if (e.message.includes("登录")) { token = ""; localStorage.removeItem("todo_token"); showAuth(true); }
+  }
+}
+
+function render(list) {
+  const ul = $("todoList");
+  ul.innerHTML = "";
+  const remain = list.filter(t => !t.done).length;
+  $("remainCount").textContent = remain;
+  $("totalCount").textContent = "共 " + list.length + " 项";
+  $("emptyTip").style.display = list.length ? "none" : "block";
+
+  const pending = list.filter(t => !t.done);
+  const done = list.filter(t => t.done);
+
+  const makeItem = (t) => {
+    const li = document.createElement("li");
+    li.className = "todo-item" + (t.done ? " done" : "");
+    if (t._temp) li.style.opacity = "0.55"; // 同步中的新任务：半透明提示
+
+    const btn = document.createElement("button");
+    btn.className = "check" + (t.done ? " checked" : "");
+    btn.setAttribute("aria-label", "勾选任务");
+    btn.innerHTML = '<svg viewBox="0 0 24 24"><polyline points="4 12.5 10 18.5 20 6"/></svg>';
+    btn.onclick = () => {
+      // 乐观更新：立即翻转界面，后台同步，失败回滚
+      const next = !t.done;
+      t.done = next;
+      render(currentList);
+      api("/todos/" + t.id, { method: "PUT", body: JSON.stringify({ done: next }) })
+        .then(updated => { Object.assign(t, updated); render(currentList); })
+        .catch(e => {
+          t.done = !next;
+          render(currentList);
+          showToast(e.message);
+        });
+    };
+
+    const span = document.createElement("span");
+    span.className = "todo-text";
+    span.textContent = t.text;
+
+    const del = document.createElement("button");
+    del.className = "del-btn";
+    del.setAttribute("aria-label", "删除任务");
+    del.textContent = "✕";
+    del.onclick = () => {
+      // 乐观更新：立即从列表移除，失败再恢复
+      if (t._temp) return;
+      const backup = currentList.slice();
+      currentList = currentList.filter(x => x.id !== t.id);
+      render(currentList);
+      api("/todos/" + t.id, { method: "DELETE" }).catch(e => {
+        currentList = backup;
+        render(currentList);
+        showToast(e.message);
+      });
+    };
+
+    li.append(btn, span, del);
+    return li;
+  };
+
+  // 待完成项
+  for (const t of pending) ul.appendChild(makeItem(t));
+
+  // 待完成与已完成之间的切换按钮：一键隐藏/显示所有已完成项
+  if (done.length) {
+    const row = document.createElement("li");
+    row.className = "toggle-row";
+
+    const toggle = document.createElement("button");
+    toggle.className = "toggle-done-btn";
+    toggle.textContent = hideDone ? "显示已完成项目" : "隐藏已完成项目";
+    toggle.onclick = () => {
+      hideDone = !hideDone;
+      localStorage.setItem("todo_hide_done", hideDone ? "1" : "0");
+      renderCurrent();
+    };
+    row.appendChild(toggle);
+    ul.appendChild(row);
+
+    if (hideDone) {
+      if (pending.length === 0) {
+        const hint = document.createElement("li");
+        hint.className = "done-hidden-hint";
+        hint.textContent = "已完成项目已全部隐藏 🎉";
+        ul.appendChild(hint);
+      }
+    } else {
+      for (const t of done) ul.appendChild(makeItem(t));
+    }
+  }
+}
+
+// 保持当前列表的本地缓存以便勾选后局部刷新
+let currentList = [];
+function renderCurrent() { render(currentList); }
+const _render = render;
+render = function (list) { currentList = list; _render(list); };
+
+let tempSeq = 0;
+function addTodo() {
+  const input = $("todoInput");
+  const text = input.value.trim();
+  if (!text) { showToast("任务内容不能为空"); return; }
+
+  // 乐观更新：先本地插入（半透明占位），再用服务端返回结果替换，全程只发 1 个请求
+  input.value = "";
+  const temp = { id: "tmp" + (++tempSeq), text, done: false, _temp: true };
+  currentList = [temp, ...currentList];
+  render(currentList);
+
+  api("/todos", { method: "POST", body: JSON.stringify({ text }) })
+    .then(created => {
+      const i = currentList.findIndex(x => x.id === temp.id);
+      if (i > -1) {
+        currentList = currentList.slice();
+        currentList[i] = created;
+      }
+      render(currentList);
+    })
+    .catch(e => {
+      currentList = currentList.filter(x => x.id !== temp.id);
+      render(currentList);
+      showToast(e.message);
+      if (!input.value) input.value = text; // 回填输入，便于重试
+    });
+}
+$("addBtn").onclick = addTodo;
+$("todoInput").addEventListener("keydown", e => { if (e.key === "Enter") addTodo(); });
+
+// ---------- 启动 ----------
+if (token) {
+  api("/todos").then(list => {
+    currentList = list;
+    $("userEmail").textContent = "已登录";
+    showAuth(false);
+    render(list);
+  }).catch(() => {
+    token = ""; localStorage.removeItem("todo_token"); showAuth(true);
+  });
+} else {
+  showAuth(true);
+}
+</script>
+</body>
+</html>

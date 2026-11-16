@@ -1,0 +1,30 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+venv/
+env/
+
+# 数据库（含用户邮箱与密码哈希，禁止入库）
+data/
+*.db
+*.db-wal
+*.db-shm
+*.sqlite3
+
+# 环境变量与密钥
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# 编辑器 / 系统
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# 日志
+*.log
