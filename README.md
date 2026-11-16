@@ -2,7 +2,7 @@
 
 一个极简的在线待办清单：邮箱账号登录、数据云端存储、移动端友好，支持一键隐藏已完成项目。
 
-![版本](https://img.shields.io/badge/version-v1.4-blue)
+![版本](https://img.shields.io/badge/version-v1.5-blue)
 ![Python](https://img.shields.io/badge/Python-3.11-3776AB?logo=python&logoColor=white)
 ![Flask](https://img.shields.io/badge/Flask-3.x-000000?logo=flask&logoColor=white)
 
@@ -15,7 +15,8 @@
 - **一键隐藏已完成**：待办与已完成之间整行灰底按钮，显示偏好本地记忆
 - **邮箱账号体系**：注册 / 登录 / 退出，PBKDF2 加盐哈希存密码，Token 鉴权
 - **云端同步**：数据存服务端 SQLite，换设备登录同一邮箱即可看到相同待办
-- **移动端适配**：390px 起响应式布局，触摸友好的点击区域
+- **移动端适配**：390px 起响应式布局，触摸友好的点击区域，适配刘海屏安全区
+- **PWA 可安装**：安卓 Chrome「添加到主屏幕」后全屏运行，离线也能打开，体验接近原生 App
 - **乐观更新**：新增 / 勾选 / 删除均为即时反馈，后台静默同步，失败自动回滚
 
 ## 技术栈
@@ -42,13 +43,25 @@ open http://127.0.0.1:3000
 
 首次启动会自动创建 `data/todos.db` 并建表，无需手动初始化数据库。
 
+## 安装到手机（免应用商店）
+
+1. 手机 Chrome 打开站点（**必须是 HTTPS 或 localhost**，PWA 的硬性要求）
+2. 点右上角菜单 → **「添加到主屏幕」/「安装应用」**
+3. 桌面出现图标，打开后全屏运行、无浏览器地址栏，与原生 App 观感一致
+
+> Service Worker 会缓存应用外壳，断网时仍能打开界面（数据需联网同步）。
+> 修改前端后若发现手机仍是旧版本，把 `static/sw.js` 里的 `CACHE_NAME` 版本号改一下即可强制更新。
+
 ## 目录结构
 
 ```
 todo-app/
-├── server.py               # Flask 后端：认证 + 待办 CRUD + 静态页托管
+├── server.py               # Flask 后端：认证 + 待办 CRUD + 静态页托管 + PWA 路由
 ├── static/
-│   └── index.html          # 前端单页应用（登录层 + 待办主界面）
+│   ├── index.html          # 前端单页应用（登录层 + 待办主界面）
+│   ├── manifest.webmanifest# PWA 清单（应用名、图标、独立窗口模式）
+│   ├── sw.js               # Service Worker（应用外壳缓存 + 离线回退）
+│   └── icon-*.png          # 应用图标（192/512/maskable/apple-touch）
 ├── requirements.txt        # Python 依赖
 ├── development-log.md      # 开发日志（含 Bug 排查与迭代记录）
 ├── preview/                # 界面截图

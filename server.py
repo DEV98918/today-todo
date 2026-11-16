@@ -236,10 +236,30 @@ def delete_todo(todo_id):
     return jsonify({"ok": True})
 
 
-# ---------------- 页面 ----------------
+# ---------------- 页面与 PWA ----------------
 @app.get("/")
 def index():
     return send_from_directory(os.path.join(BASE_DIR, "static"), "index.html")
+
+
+@app.get("/manifest.webmanifest")
+def manifest():
+    return send_from_directory(
+        os.path.join(BASE_DIR, "static"),
+        "manifest.webmanifest",
+        mimetype="application/manifest+json",
+    )
+
+
+@app.get("/sw.js")
+def service_worker():
+    resp = send_from_directory(
+        os.path.join(BASE_DIR, "static"), "sw.js", mimetype="application/javascript"
+    )
+    # Service Worker 必须能及时更新，禁止强缓存；允许控制根作用域
+    resp.headers["Cache-Control"] = "no-cache"
+    resp.headers["Service-Worker-Allowed"] = "/"
+    return resp
 
 
 init_db()

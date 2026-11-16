@@ -142,6 +142,8 @@ todo-app/
 | v1.1 | 修复「登录后闪退回登录页」（`Authorization` 被平台代理覆盖 → 改用 `X-Auth-Token`） | ✅ 已上线 |
 | v1.2 | 新增「一键隐藏已完成项目」切换按钮 | ✅ 已上线 |
 | v1.3 | 切换按钮样式调整：与「添加」按钮同款灰底白字、文案固定 | ✅ 已上线 |
+| v1.4 | 性能优化：前端乐观更新 + 后端 WAL、连接复用、索引 | ✅ 已上线 |
+| v1.5 | PWA 改造：manifest、Service Worker、应用图标、安全区适配 | ✅ 已完成待发布 |
 
 ### 迭代 v1.2：一键隐藏已完成项目
 
@@ -174,6 +176,32 @@ todo-app/
 **验证方式升级**：引入 Playwright 无头浏览器，在 390×844（iPhone 尺寸）视口下注入模拟数据实际截图，分别确认「展开态」与「隐藏态」的视觉与交互效果，截图存档于 `preview/按钮-展开态.png`、`preview/按钮-隐藏态.png`。
 
 **发布校验**：发布后直接在线上拉取 HTML 做产物校验——新文案各 1 处、灰色背景样式 1 处、旧计数文案残留 0 处；数据库账号与待办数据完整保留（1 账号 / 33 条待办）。
+
+### 迭代 v1.5：PWA 改造（为手机 App 体验做准备）
+
+**背景**：项目小范围自用（本人与家人）、面向安卓，无需上架应用商店。评估后确定走「PWA → 可选自签 APK → 微信小程序/公众号」的渐进路线，PWA 为第一步。
+
+**实现**
+
+1. `static/manifest.webmanifest`：应用名「今日待办」、`display: standalone`、主题色 `#4f6ef7`、竖屏锁定、三档图标（192/512/maskable）。
+2. 图标：用 PIL 程序化生成蓝底白色对勾图标，maskable 版本留 10% 安全边距（适配安卓各厂商的圆形/方形裁切）。
+3. `static/sw.js`：应用外壳预缓存；导航请求「网络优先、失败回退缓存」；静态资源「缓存优先」；**`/api/*` 完全不拦截不缓存**（避免显示过期数据）。
+4. 后端新增 `/manifest.webmanifest` 与 `/sw.js` 两个根路径路由（Service Worker 必须在根作用域才能接管全站），并给 `sw.js` 设置 `Cache-Control: no-cache` 与 `Service-Worker-Allowed: /`。
+5. 前端：补全 manifest/theme-color/apple-touch-icon 等 meta，适配刘海屏与手势条安全区（`env(safe-area-inset-*)`），`min-height` 增加 `100dvh` 以规避移动端地址栏导致的 100vh 偏差。
+
+**验证（Playwright 移动端仿真）**
+
+| 检查项 | 结果 |
+|---|---|
+| manifest 解析 | ✅ name=今日待办，display=standalone，图标 3 个 |
+| Service Worker | ✅ 已激活，控制根作用域（scope=`/`） |
+| 断网重载 | ✅ 页面正常渲染，不白屏 |
+| `/api` 是否被缓存 | ✅ 未被缓存，离线时按预期请求失败 |
+| 页面 JS 报错 | ✅ 无 |
+
+**结论**：满足 Android Chrome「添加到主屏幕」的可安装条件，且具备离线打开能力。
+
+---
 
 ### 迭代小结
 
