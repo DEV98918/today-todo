@@ -7,6 +7,7 @@ import sqlite3
 import secrets
 import hashlib
 import hmac
+import time
 from functools import wraps
 from datetime import datetime
 
@@ -14,6 +15,7 @@ from flask import Flask, request, jsonify, send_from_directory, g
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DB_PATH = os.path.join(BASE_DIR, "data", "todos.db")
+ADMIN_KEY_PATH = os.path.join(BASE_DIR, "data", "admin_key.txt")
 
 app = Flask(__name__, static_folder="static", static_url_path="/static")
 
@@ -84,6 +86,24 @@ def hash_password(password: str, salt: str) -> str:
     return hashlib.pbkdf2_hmac(
         "sha256", password.encode("utf-8"), salt.encode("utf-8"), 100_000
     ).hex()
+
+
+def read_or_create_admin_key() -> str:
+    """读取管理员密钥；首次运行时生成一个随机密钥写入 data/admin_key.txt。
+
+    该密钥是重置密码的唯一凭证，需由站点管理员（你）妥善保管，
+    忘记密码时凭「邮箱 + 管理员密钥 + 新密码」自助重置。
+    """
+    os.makedirs(os.path.dirname(ADMIN_KEY_PATH), exist_ok=True)
+    if os.path.exists(ADMIN_KEY_PATH):
+        with open(ADMIN_KEY_PATH, "r", encoding="utf-8") as f:
+            key = f.read().strip()
+        if key:
+            return key
+    key = secrets.token_urlsafe(9)  # 约 12 位，易读且足够安全
+    with open(ADMIN_KEY_PATH, "w", encoding="utf-8") as f:
+        f.write(key)
+    return key
 
 
 # ---------------- 鉴权 ----------------
@@ -158,11 +178,57 @@ def login():
     return jsonify({"token": token, "email": email})
 
 
+# ---------------- 找回密码 ----------------
+# 简易内存限流：同一 IP 连续失败 5 次后锁定 60 秒，防止暴力猜测管理员密钥
+_reset_fails = {}  # ip -> [失败次数, 锁定截止时间(timestamp)]
+
+
+@app.post("/api/reset-password")
+def reset_password():
+    ip = request.remote_addr or "unknown"
+    now = time.time()
+    fails, lock_until = _reset_fails.get(ip, [0, 0])
+    if now < lock_until:
+        return jsonify({"error": "尝试次数过多，请稍后再试（60 秒）"}), 429
+
+    data = request.get_json(silent=True) or {}
+    email = (data.get("email") or "").strip().lower()
+    admin_key = (data.get("admin_key") or "").strip()
+    new_password = data.get("new_password") or ""
+
+    if not EMAIL_RE.match(email):
+        return jsonify({"error": "请输入有效的邮箱地址"}), 400
+    if len(new_password) < 6:
+        return jsonify({"error": "新密码至少 6 位"}), 400
+
+    expected = read_or_create_admin_key()
+    if not admin_key or not hmac.compare_digest(admin_key, expected):
+        fails += 1
+        lock_until = now + 60 if fails >= 5 else 0
+        _reset_fails[ip] = [fails, lock_until]
+        return jsonify({"error": "管理员密钥不正确"}), 403
+
+    with get_db() as db:
+        user = db.execute("SELECT id FROM users WHERE email = ?", (email,)).fetchone()
+        if not user:
+            return jsonify({"error": "该邮箱尚未注册"}), 404
+        salt = secrets.token_hex(16)
+        db.execute(
+            "UPDATE users SET password_hash = ?, salt = ? WHERE id = ?",
+            (hash_password(new_password, salt), salt, user["id"]),
+        )
+        # 重置后作废旧 Token，强制用新密码重新登录
+        db.execute("DELETE FROM tokens WHERE user_id = ?", (user["id"],))
+
+    _reset_fails.pop(ip, None)
+    return jsonify({"ok": True, "email": email})
+
+
 @app.post("/api/logout")
 @require_auth
 def logout():
-    auth = request.headers.get("Authorization", "")
-    token = auth[7:] if auth.startswith("Bearer ") else auth
+    # 与鉴权保持一致：Token 通过 X-Auth-Token 头传输
+    token = request.headers.get("X-Auth-Token", "")
     with get_db() as db:
         db.execute("DELETE FROM tokens WHERE token = ?", (token,))
     return jsonify({"ok": True})
@@ -263,6 +329,7 @@ def service_worker():
 
 
 init_db()
+read_or_create_admin_key()  # 服务启动即确保管理员密钥文件存在
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 3000))

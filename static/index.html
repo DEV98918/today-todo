@@ -183,13 +183,17 @@
 <div class="auth-mask" id="authMask">
   <div class="auth-card">
     <h2 id="authTitle">登录</h2>
-    <div class="sub">使用邮箱作为账号，数据云端同步</div>
+    <div class="sub" id="authSub">使用邮箱作为账号，数据云端同步</div>
     <input id="authEmail" type="email" placeholder="邮箱" autocomplete="email">
     <input id="authPassword" type="password" placeholder="密码（至少 6 位）" autocomplete="current-password">
+    <input id="authAdminKey" type="text" placeholder="管理员密钥" autocomplete="off" style="display:none">
     <div class="auth-err" id="authErr"></div>
     <button class="submit" id="authSubmit">登录</button>
-    <div class="auth-switch">
+    <div class="auth-switch" id="authSwitch">
       <span id="switchTip">还没有账号？</span><a id="switchLink">注册</a>
+    </div>
+    <div class="auth-switch" id="forgotRow" style="margin-top:10px">
+      <a id="forgotLink">忘记密码？</a><a id="backLink" style="display:none">返回登录</a>
     </div>
   </div>
 </div>
@@ -200,7 +204,7 @@
 const $ = (id) => document.getElementById(id);
 const API = "/api";
 let token = localStorage.getItem("todo_token") || "";
-let mode = "login"; // login | register
+let mode = "login"; // login | register | reset
 // 是否隐藏所有已完成项（持久化到 localStorage）
 let hideDone = localStorage.getItem("todo_hide_done") === "1";
 
@@ -227,14 +231,24 @@ function showAuth(show) { $("authMask").classList.toggle("hidden", !show); }
 
 function setMode(m) {
   mode = m;
-  $("authTitle").textContent = m === "login" ? "登录" : "注册";
-  $("authSubmit").textContent = m === "login" ? "登录" : "注册";
-  $("switchTip").textContent = m === "login" ? "还没有账号？" : "已有账号？";
-  $("switchLink").textContent = m === "login" ? "注册" : "登录";
+  const isReset = m === "reset";
+  $("authTitle").textContent = isReset ? "重置密码" : (m === "login" ? "登录" : "注册");
+  $("authSub").textContent = isReset
+    ? "凭邮箱与管理员密钥设置新密码"
+    : "使用邮箱作为账号，数据云端同步";
+  $("authSubmit").textContent = isReset ? "重置密码" : (m === "login" ? "登录" : "注册");
+  $("authAdminKey").style.display = isReset ? "block" : "none";
+  $("authSwitch").style.display = isReset ? "none" : "block";
+  $("forgotLink").style.display = isReset ? "none" : "inline";
+  $("backLink").style.display = isReset ? "inline" : "none";
+  $("authPassword").placeholder = isReset ? "新密码（至少 6 位）" : "密码（至少 6 位）";
+  $("authPassword").autocomplete = isReset ? "new-password" : "current-password";
   $("authErr").textContent = "";
 }
 
 $("switchLink").onclick = () => setMode(mode === "login" ? "register" : "login");
+$("forgotLink").onclick = () => setMode("reset");
+$("backLink").onclick = () => setMode("login");
 
 $("authSubmit").onclick = async () => {
   const email = $("authEmail").value.trim();
@@ -242,6 +256,18 @@ $("authSubmit").onclick = async () => {
   if (!email || !password) { $("authErr").textContent = "请填写邮箱和密码"; return; }
   $("authSubmit").disabled = true;
   try {
+    if (mode === "reset") {
+      const adminKey = $("authAdminKey").value.trim();
+      if (!adminKey) { $("authErr").textContent = "请填写管理员密钥"; return; }
+      await api("/reset-password", {
+        method: "POST",
+        body: JSON.stringify({ email, admin_key: adminKey, new_password: password })
+      });
+      showToast("密码重置成功，请用新密码登录");
+      setMode("login");
+      $("authAdminKey").value = "";
+      return;
+    }
     const data = await api("/" + mode, {
       method: "POST",
       body: JSON.stringify({ email, password })

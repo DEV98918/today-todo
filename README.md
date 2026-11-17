@@ -2,7 +2,7 @@
 
 一个极简的在线待办清单：邮箱账号登录、数据云端存储、移动端友好，支持一键隐藏已完成项目。
 
-![版本](https://img.shields.io/badge/version-v1.5-blue)
+![版本](https://img.shields.io/badge/version-v1.6-blue)
 ![Python](https://img.shields.io/badge/Python-3.11-3776AB?logo=python&logoColor=white)
 ![Flask](https://img.shields.io/badge/Flask-3.x-000000?logo=flask&logoColor=white)
 
@@ -14,6 +14,7 @@
 - **剩余计数**：顶部实时显示「剩余 N 项待完成」与总条数
 - **一键隐藏已完成**：待办与已完成之间整行灰底按钮，显示偏好本地记忆
 - **邮箱账号体系**：注册 / 登录 / 退出，PBKDF2 加盐哈希存密码，Token 鉴权
+- **找回密码**：忘记密码时用「邮箱 + 管理员密钥」自助重置，密钥存于服务端 `data/admin_key.txt`，重置后作废旧 Token
 - **云端同步**：数据存服务端 SQLite，换设备登录同一邮箱即可看到相同待办
 - **移动端适配**：390px 起响应式布局，触摸友好的点击区域，适配刘海屏安全区
 - **PWA 可安装**：安卓 Chrome「添加到主屏幕」后全屏运行，离线也能打开，体验接近原生 App
@@ -77,6 +78,7 @@ todo-app/
 |---|---|---|---|
 | POST | `/api/register` | 注册并返回 Token | 否 |
 | POST | `/api/login` | 登录并返回 Token | 否 |
+| POST | `/api/reset-password` | 凭邮箱 + 管理员密钥重置密码，作废旧 Token | 否 |
 | POST | `/api/logout` | 退出，注销当前 Token | 是 |
 | GET | `/api/todos` | 获取当前用户全部待办 | 是 |
 | POST | `/api/todos` | 新增待办（`{"text": "..."}`） | 是 |
